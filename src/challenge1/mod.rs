@@ -18,7 +18,6 @@ use prusti_contracts::*;
 // }
 
 // recursive because of Prusti loop limitations
-#[requires(n > 0)]
 #[requires(a.len() == n)]
 // #[ensures(is_h_idx(a, result))]
 fn compute_rec(a: &[usize], n: usize, curr_h: usize) -> usize {
@@ -33,10 +32,29 @@ fn compute_rec(a: &[usize], n: usize, curr_h: usize) -> usize {
     }
 }
 
-#[requires(n > 0)]
 #[requires(a.len() == n)]
 // #[ensures(is_h_idx(a, result))]
 // NOTE: We cannot currently verify termination since Prusti does not yet support decreases annotations
 fn compute(a: &[usize], n: usize) -> usize {
     compute_rec(a, n, 0)
+}
+
+#[requires(a.len() == n)]
+#[requires(low <= n && high <= n)]
+fn compute_opt_rec(a: &[usize], n: usize, low: usize, high: usize) -> usize {
+    if low >= high {
+        low
+    } else {
+        let mid = low + (high - low) / 2;
+        if mid < a[mid] {
+            compute_opt_rec(a, n, mid + 1, high)
+        } else {
+            compute_opt_rec(a, n, low, mid)
+        }
+    }
+}
+
+#[requires(a.len() == n)]
+fn compute_opt(a: &[usize], n: usize) -> usize {
+    compute_opt_rec(a, n, 0, n)
 }
