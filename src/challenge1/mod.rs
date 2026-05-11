@@ -95,8 +95,8 @@ fn update_rec(a: &mut [usize], h: usize, i: usize, low: usize, high: usize, x: u
 // #[requires(is_h_idx(a, h))]
 #[requires(sorted_rev(a))]
 #[requires(i < a.len())]
-#[requires(x == a[i])] // Note we cannot do this assignment in the program since otherwise Prusti cannot verify that a hasn't changed
-fn update(a: &mut [usize], h: usize, i: usize, x: usize) -> usize {
+fn update(a: &mut [usize], h: usize, i: usize) -> usize {
+    let x = a[i];
     let lo = 0_usize;
     let hi = i;
     update_rec(a, h, i, lo, hi, x)
