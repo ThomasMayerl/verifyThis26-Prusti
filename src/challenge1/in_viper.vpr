@@ -1,0 +1,176 @@
+function rev_sorted(a: Seq[Int]): Bool {
+    forall i: Int, j: Int :: 0 <= i < j < |a| ==> a[i] >= a[j]
+}
+
+function seq_rev_sorted(a: Seq[Int]): Seq[Int]
+ensures rev_sorted(result)
+ensures |a| == |result|
+ensures forall i: Int :: 0 <= i < |a| ==> a[i] in result
+ensures forall i: Int :: 0 <= i < |a| ==> result[i] in a
+ensures rev_sorted(a) ==> result == a
+
+function count_sorted(a: Seq[Int], h: Int, idx: Int): Int 
+requires rev_sorted(a)
+{
+    idx < 0 ? 0 :
+    (|a| <= idx || a[idx] < h ? 0 :
+    1 + count_sorted(a, h - 1, idx - 1))
+}
+
+function h_idx(a: Seq[Int], h: Int): Bool {
+    count_sorted(seq_rev_sorted(a), h, h - 1) == h 
+}
+
+method compute(a: Seq[Int], n: Int) returns (h: Int) 
+    requires n == |a|
+    requires rev_sorted(a)
+    ensures h_idx(a, h)
+{
+    var curr_h: Int := 0;
+    while(curr_h < n && curr_h < a[curr_h])
+        invariant 0 <= curr_h <= n
+        invariant count_sorted(a, curr_h, curr_h - 1) == curr_h
+    {
+        curr_h := curr_h + 1;
+    }
+    h := curr_h;
+}
+
+method compute_opt(a: Seq[Int], n: Int) returns (h: Int)
+    requires n == |a|
+    requires rev_sorted(a)
+    ensures h_idx(a, h)
+{
+    var lo: Int := 0
+    var hi: Int := n
+    while(lo < hi) 
+        invariant 0 <= lo <= |a|
+        invariant 0 <= hi <= |a|
+        invariant count_sorted(a, lo, lo - 1) == lo
+    {
+        var mid: Int := lo + (hi - lo) / 2
+        if (a[mid] <= mid) {
+            hi := mid
+        } else{
+            lemma_count_sorted_chain(a, lo, mid)
+            lo := mid + 1
+        }
+        refute false
+    }
+    h := lo
+}
+
+method update(a: Seq[Int], h: Int, i: Int) returns (new_a: Seq[Int], new_h: Int)
+    requires 0 <= i < |a|
+    requires rev_sorted(a)
+    requires h_idx(a, h)
+    ensures rev_sorted(new_a)
+    ensures h_idx(new_a, new_h)
+{  
+    var x: Int := a[i]
+    var lo: Int := 0
+    var hi: Int := i
+    assume h < |a|
+    while (lo < hi) 
+        invariant 0 <= lo <= hi <= i
+        invariant hi < |a|
+        invariant forall k: Int :: 0 <= k < lo ==> a[k] > x   // left of lo: too big
+        invariant forall k: Int :: hi < k <= i ==> a[k] <= x   // right of hi: too small
+        invariant a[hi] == x  
+        invariant h < |a|
+        invariant h_idx(a, h)
+    {
+        var mid: Int := lo + (hi - lo) / 2
+        if (a[mid] == x) {
+            hi := mid
+        } else {
+            lo := mid + 1
+        }
+    }
+    new_a := a[lo := a[lo] + 1]
+    if (lo == h && new_a[lo] == h + 1) {
+        new_h := h + 1
+        lemma_update(a, h, lo, new_a, new_h)
+        refute false
+    } else {
+        new_h := h
+        lemma_update_noop(a, h, lo, new_a)
+        refute false
+    }
+}
+
+method lemma_count_sorted_step(a: Seq[Int], lo: Int)
+  requires rev_sorted(a)
+  requires 0 <= lo < |a|
+  requires count_sorted(a, lo, lo - 1) == lo
+  requires a[lo] > lo          // the else-branch condition
+  ensures count_sorted(a, lo + 1, lo) == lo + 1
+{}
+
+method lemma_count_sorted_chain(a: Seq[Int], lo: Int, mid: Int)
+  requires rev_sorted(a)
+  requires 0 <= lo <= mid < |a|
+  requires count_sorted(a, lo, lo - 1) == lo
+  requires forall k: Int :: lo <= k <= mid ==> a[k] > k  // all elements above threshold
+  ensures count_sorted(a, mid + 1, mid) == mid + 1
+{
+  var i: Int := lo
+  while (i <= mid)
+    invariant lo <= i <= mid + 1
+    invariant count_sorted(a, i, i - 1) == i
+  {
+    i := i + 1
+  }
+}
+
+method lemma_update(a: Seq[Int], h: Int, x: Int, new_a: Seq[Int], new_h: Int)
+    requires 0 <= x < |a|
+    requires new_a == a[x := a[x] + 1]
+    requires x == h
+    requires new_a[x] == h + 1
+    requires new_h == h + 1
+    requires h_idx(a, h)
+    requires rev_sorted(a)
+    requires forall k: Int :: 0 <= k < x ==> a[k] > a[x]  // x is leftmost occurrence of a[x]
+    ensures rev_sorted(new_a)
+    ensures h_idx(new_a, new_h)
+{
+    var k: Int := 0
+    while (k <= h)
+        invariant 0 <= k <= h + 1
+        invariant count_sorted(new_a, k, k - 1) == k
+    {
+        k := k + 1
+    }
+}
+
+// When incrementing a[lo] does NOT advance the h-index, the h-index stays at h.
+method lemma_update_noop(a: Seq[Int], h: Int, lo: Int, new_a: Seq[Int])
+    requires 0 <= h < |a|
+    requires 0 <= lo < |a|
+    requires new_a == a[lo := a[lo] + 1]
+    requires h_idx(a, h)
+    requires rev_sorted(a)
+    requires forall k: Int :: 0 <= k < lo ==> a[k] > a[lo]
+    ensures rev_sorted(new_a)
+    ensures h_idx(new_a, h)
+{
+    var jj: Int := h
+    while (jj > 0)
+        invariant 0 <= jj <= h
+        invariant jj < |a|
+        invariant count_sorted(a, jj, jj - 1) == jj
+        invariant forall idx: Int :: jj <= idx < h ==> a[idx] >= idx + 1
+    {
+        jj := jj - 1
+    }
+
+    // Build count_sorted(new_a, h, h-1) == h ascending
+    var kk: Int := 0
+    while (kk < h)
+        invariant 0 <= kk <= h
+        invariant count_sorted(new_a, kk, kk - 1) == kk
+    {
+        kk := kk + 1
+    }
+}
